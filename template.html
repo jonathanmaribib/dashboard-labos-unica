@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Publications UCA — Tableau de bord OpenAlex</title>
+<title>Publications UniCA — Tableau de bord OpenAlex</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{--bg:#f4f6f9;--card:#fff;--ink:#1b2a3a;--mute:#6b7a8c;--line:#e3e8ee;--a:#0b6e8a;--a2:#e8f3f6}
@@ -47,6 +47,7 @@ tbody tr.cl{cursor:pointer}tbody tr.cl:hover{background:var(--a2)}
 .mx td{width:30px;min-width:30px;height:28px;text-align:center;border:0;border-radius:4px;padding:0;font-size:11px;font-variant-numeric:tabular-nums;background:#f3f5f8}
 .mx td.d{background:repeating-linear-gradient(45deg,#e3e8ee,#e3e8ee 3px,#f3f5f8 3px,#f3f5f8 6px)}
 .mx td.hl{outline:2px solid #f28c28;outline-offset:-2px}
+.chip{border:0;background:#fff;color:#0a3d5c;font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer}.chip[hidden]{display:none}
 footer{text-align:center;color:var(--mute);font-size:12px;padding:0 20px 30px}
 svg text{font-size:10px;fill:#33475b}
 .empty{color:var(--mute);padding:30px;text-align:center}
@@ -55,7 +56,6 @@ svg text{font-size:10px;fill:#33475b}
 <body>
 <header>
   <h1>Publications de l'Université Côte d'Azur</h1>
-  <p id="meta"></p>
   <div class="bar">
     <select id="ent" aria-label="Unité"></select>
     <div class="seg" id="corpus">
@@ -63,6 +63,7 @@ svg text{font-size:10px;fill:#33475b}
       <button data-c="core">Principal</button>
       <button data-c="xpac">XPAC</button>
     </div>
+    <button id="yf" class="chip" hidden title="Retirer le filtre"></button>
   </div>
 </header>
 <main>
@@ -78,20 +79,21 @@ svg text{font-size:10px;fill:#33475b}
 
   <section class="tab on" id="t-vue"><div class="grid">
     <div class="card"><h3>Publications par année</h3><p class="sub" id="yrnote"></p><div class="ch"><canvas id="c-years"></canvas></div></div>
-    <div class="card"><h3>Types de documents</h3><p class="sub">Typologie OpenAlex</p><div class="ch"><canvas id="c-types"></canvas></div></div>
+    <div class="card"><h3>Types de documents</h3><p class="sub" id="ty-sub">Typologie OpenAlex</p><div class="ch"><canvas id="c-types"></canvas></div></div>
   </div></section>
 
   <section class="tab" id="t-oa"><div class="grid">
-    <div class="card"><h3>Répartition par statut</h3><p class="sub">Toutes années confondues</p><div class="ch"><canvas id="c-oa"></canvas></div></div>
+    <div class="card"><h3>Répartition par statut</h3><p class="sub" id="oa-sub"></p><div class="ch"><canvas id="c-oa"></canvas></div></div>
+    <div class="card"><h3>Total en accès ouvert par année</h3><p class="sub">Nombre de publications (barres) et part du total (courbe), hors fermé et inconnu</p><div class="ch"><canvas id="c-oatot"></canvas></div></div>
     <div class="card" style="grid-column:1/-1"><h3>Évolution annuelle</h3><p class="sub">Part de chaque statut (%)</p><div class="ch" style="height:380px"><canvas id="c-oay"></canvas></div></div>
   </div></section>
 
   <section class="tab" id="t-collab">
     <div class="grid">
       <div class="card"><h3>Pays partenaires</h3><p class="sub" id="fr-note"></p><div class="ch"><canvas id="c-cty"></canvas></div></div>
-      <div class="card"><h3>Institutions partenaires</h3><p class="sub">Hors UCA et hors tutelles de l'unité</p><div style="max-height:600px;overflow:auto"><table id="tb-partners"></table></div></div>
+      <div class="card"><h3>Institutions partenaires</h3><p class="sub">Hors UniCA et hors tutelles de l'unité</p><div style="max-height:600px;overflow:auto"><table id="tb-partners"></table></div></div>
     </div>
-    <div class="card" style="margin-top:14px"><h3 id="ego-t">Collaborations entre unités</h3><p class="sub">Nombre de publications cosignées avec chaque unité UCA (hors relation parent/enfant).</p>
+    <div class="card" style="margin-top:14px"><h3 id="ego-t">Collaborations entre unités</h3><p class="sub">Nombre de publications cosignées avec chaque unité UniCA (hors relation parent/enfant).</p>
       <div class="ch" id="ego-box"><canvas id="c-ego"></canvas></div><p class="sub" id="ego-empty" style="display:none"></p></div>
     <div class="card" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><div><h3>Matrice des collaborations</h3>
       <p class="sub">Chaque case = nombre de publications cosignées par deux unités ; plus la case est foncée, plus la collaboration est forte. Cliquer sur un nom pour ouvrir la fiche.</p></div>
@@ -113,9 +115,6 @@ svg text{font-size:10px;fill:#33475b}
     <p class="sub">Cliquer sur une ligne pour ouvrir la fiche. Comptage entier : les totaux ne s'additionnent pas.</p>
     <div style="overflow:auto"><table id="tb-units"></table></div></div></section>
 
-  <div class="note">Lecture : les chiffres reflètent ce qu'OpenAlex sait rattacher aujourd'hui à l'UCA et à ses unités
-  (comptage entier, depuis <span id="miny"></span>). Les thématiques et ODD sont attribués automatiquement et sont indicatifs.
-  Aucun indicateur de citation n'est présenté (DORA, CoARA).</div>
 </main>
 <footer id="foot"></footer>
 
@@ -132,7 +131,7 @@ const OAL={diamond:'Diamant',gold:'Or',green:'Vert',hybrid:'Hybride',bronze:'Bro
 const OAO=['diamond','gold','green','hybrid','bronze','closed','unknown'];
 const SDGC=['#e5243b','#dda63a','#4c9f38','#c5192d','#ff3a21','#26bde2','#fcc30b','#a21942','#fd6925','#dd1367','#fd9d24','#bf8b2e','#3f7e44','#0a97d9','#56c02b','#00689d','#19486a'];
 const PAL=['#0b6e8a','#f28c28','#2e9e5b','#8e5ea2','#d64550','#3b8ea5','#c9a227','#6b7a8c'];
-const st={ent:'UCA',c:'all',nmat:30,sort:{k:'n',d:-1}};
+const st={year:null,ent:'UCA',c:'all',nmat:30,sort:{k:'n',d:-1}};
 const empty={n:0,doi:0,intl:0,years:{},oa:{},oa_year:{},types:{},countries:[],partners:[],topics:[],fields:[],domains:{},sdg:[]};
 const uname={UCA:'Université Côte d\'Azur (ensemble)',NOLAB:'Sans laboratoire identifié'};
 D.units.forEach(u=>uname[u.id]=u.name+(u.acro?' ('+u.acro+')':''));
@@ -160,9 +159,8 @@ const legPct=ch=>{const g=Chart.overrides.doughnut.plugins.legend.labels.generat
   g.forEach((l,i)=>l.text+=' — '+f1(100*ds.data[i]/t)+' %');return g};
 
 function init(){
-  $('#meta').textContent=`Snapshot ${D.meta.snapshot} · ${fmt(D.meta.works_read)} works lus · généré le ${D.meta.generated}`;
-  $('#miny').textContent=D.meta.min_year;
-  $('#foot').textContent='Données : OpenAlex. Page générée par build_dashboard.py — DIBSO, Université Côte d\'Azur.';
+  $('#yf').onclick=()=>{st.year=null;render()};
+  $('#foot').textContent='Données : OpenAlex · snapshot du '+new Date(D.meta.snapshot_date).toLocaleDateString('fr-FR');
   const sel=$('#ent');
   const us=[...D.units].filter(u=>D.data.all[u.id]).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   sel.innerHTML=`<option value="UCA">${uname.UCA}</option><option value="NOLAB">${uname.NOLAB}</option>`+
@@ -179,27 +177,40 @@ function pick(id){st.ent=id;$('#ent').value=id;render();window.scrollTo({top:0,b
 
 function render(){
   const d=cur(),ys=Object.keys(d.years).map(Number);
-  const nOA=(d.n)-(d.oa.closed||0)-(d.oa.unknown||0);
+  if(st.year&&!d.years[st.year])st.year=null;
+  const S=st.year,oaC=S?(d.oa_year[S]||{}):d.oa,N=S?d.years[S]:d.n,
+    DOI=S?(d.doi_year[S]||0):d.doi,INTL=S?(d.intl_year[S]||0):d.intl,TY=S?(d.types_year[S]||{}):d.types;
+  const nOA=N-(oaC.closed||0)-(oaC.unknown||0);
+  const yf=$('#yf');yf.hidden=!S;yf.textContent='Année '+S+' ✕';
   $('#kpis').innerHTML=[
-    [fmt(d.n),'publications'],[pct(nOA,d.n),'en accès ouvert'],
-    [pct(d.oa.diamond||0,d.n),'diamant'],[pct(d.intl,d.n),'avec partenaire étranger'],
-    [pct(d.doi,d.n),'avec DOI']].map(k=>`<div class="card kpi"><b>${k[0]}</b><span>${k[1]}</span></div>`).join('');
+    [fmt(N),'publications'+(S?' en '+S:'')],[pct(nOA,N),'en accès ouvert ('+fmt(nOA)+')'],
+    [pct(oaC.diamond||0,N),'diamant'],[pct(INTL,N),'avec partenaire étranger'],
+    [pct(DOI,N),'avec DOI']].map(k=>`<div class="card kpi"><b>${k[0]}</b><span>${k[1]}</span></div>`).join('');
   if(!d.n){return}
   const y0=Math.min(...ys),y1=Math.max(...ys),Y=[];for(let y=y0;y<=y1;y++)Y.push(y);
   const yr=new Date().getFullYear();
-  $('#yrnote').textContent=y1>=yr?`${yr} : année en cours, données partielles`:'';
+  $('#yrnote').textContent=(y1>=yr?`${yr} : année en cours, données partielles. `:'')+'Cliquer sur une année pour filtrer les autres graphiques.';
   mk('c-years',{type:'bar',data:{labels:Y,datasets:[{data:Y.map(y=>d.years[y]||0),
-    backgroundColor:Y.map(y=>y>=yr?'#9fcfdb':'#0b6e8a'),borderRadius:3}]},
-    options:{...noleg,scales:{x:ax,y:ax}}});
-  const ty=Object.entries(d.types).slice(0,8);
+    backgroundColor:Y.map(y=>S&&y!=S?'#c9d6df':(y>=yr?'#9fcfdb':'#0b6e8a')),borderRadius:3}]},
+    options:{...noleg,scales:{x:ax,y:ax},onHover:(e,el)=>e.native.target.style.cursor=el.length?'pointer':'default',
+      onClick:(e,el)=>{if(el.length){const y=Y[el[0].index];st.year=st.year==y?null:y;render()}}}});
+  const ty=Object.entries(TY).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  $('#ty-sub').textContent='Typologie OpenAlex'+(S?' · '+S:'');
+  $('#oa-sub').textContent=S?'Année '+S:'Toutes années confondues';
   mk('c-types',{type:'bar',data:{labels:ty.map(t=>t[0]),datasets:[{data:ty.map(t=>t[1]),backgroundColor:'#3b8ea5',borderRadius:3}]},
     options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}});
-  const oas=OAO.filter(k=>d.oa[k]);
-  mk('c-oa',{type:'doughnut',data:{labels:oas.map(k=>OAL[k]),datasets:[{data:oas.map(k=>d.oa[k]),backgroundColor:oas.map(k=>OAC[k]),borderWidth:2}]},
+  const oas=OAO.filter(k=>oaC[k]),oasAll=OAO.filter(k=>d.oa[k]);
+  mk('c-oa',{type:'doughnut',data:{labels:oas.map(k=>OAL[k]),datasets:[{data:oas.map(k=>oaC[k]),backgroundColor:oas.map(k=>OAC[k]),borderWidth:2}]},
     options:{cutout:'52%',plugins:{legend:{position:'right',labels:{generateLabels:legPct}},pctLabels:{kind:'donut'}}},plugins:[pctLabels]});
-  mk('c-oay',{type:'bar',data:{labels:Y,datasets:oas.map(k=>({label:OAL[k],backgroundColor:OAC[k],
+  mk('c-oay',{type:'bar',data:{labels:Y,datasets:oasAll.map(k=>({label:OAL[k],backgroundColor:OAC[k],
     data:Y.map(y=>{const o=d.oa_year[y]||{},t=Object.values(o).reduce((a,b)=>a+b,0);return t?+(100*(o[k]||0)/t).toFixed(1):0})}))},
     options:{scales:{x:{...ax,stacked:true},y:{...ax,stacked:true,max:100,ticks:{callback:v=>v+' %'}}},plugins:{legend:{position:'bottom',labels:{boxWidth:10}},pctLabels:{kind:'bar'}}},plugins:[pctLabels]});
+  const oaN=y=>Object.entries(d.oa_year[y]||{}).filter(([k])=>k!='closed'&&k!='unknown').reduce((a,[,v])=>a+v,0);
+  const oaT=y=>Object.values(d.oa_year[y]||{}).reduce((a,b)=>a+b,0);
+  mk('c-oatot',{type:'bar',data:{labels:Y,datasets:[
+    {type:'bar',label:'Publications en accès ouvert',data:Y.map(oaN),backgroundColor:'#2e9e5b',borderRadius:3,yAxisID:'y'},
+    {type:'line',label:'Part en accès ouvert',data:Y.map(y=>oaT(y)?+(100*oaN(y)/oaT(y)).toFixed(1):0),borderColor:'#0a3d5c',backgroundColor:'#0a3d5c',tension:.25,pointRadius:3,yAxisID:'y1'}]},
+    options:{scales:{x:ax,y:ax,y1:{position:'right',min:0,max:100,grid:{display:false},border:{display:false},ticks:{callback:v=>v+' %'}}},plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}});
   const fr=(d.countries.find(c=>c[0]=='FR')||[0,0])[1];
   $('#fr-note').textContent=`Publications avec ≥1 partenaire en France (hors tutelles) : ${fmt(fr)}. Hors France ci-dessous.`;
   const cs=d.countries.filter(c=>c[0]!='FR').slice(0,20),hh=Math.max(200,cs.length*27+40);
@@ -236,7 +247,7 @@ function network(){
   it=it.slice(0,15);
   const box=$('#ego-box'),em=$('#ego-empty');
   if(!it.length){if(charts['c-ego']){charts['c-ego'].destroy();delete charts['c-ego']}
-    box.style.display='none';em.style.display='block';em.textContent='Aucune cosignature avec une autre unité UCA.'}
+    box.style.display='none';em.style.display='block';em.textContent='Aucune cosignature avec une autre unité UniCA.'}
   else{box.style.display='block';em.style.display='none';box.style.height=Math.max(160,it.length*27+40)+'px';
     mk('c-ego',{type:'bar',data:{labels:it.map(x=>x[0]),datasets:[{data:it.map(x=>x[1]),backgroundColor:'#0b6e8a',borderRadius:3}]},
       options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}})}

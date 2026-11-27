@@ -38,6 +38,8 @@ class Agg:
         self.n = self.doi = self.intl = 0
         self.years, self.oa, self.types = Counter(), Counter(), Counter()
         self.oa_year = defaultdict(Counter)
+        self.types_year = defaultdict(Counter)
+        self.doi_year, self.intl_year = Counter(), Counter()
         self.countries, self.partners = Counter(), Counter()
         self.topics, self.fields, self.domains, self.sdg = Counter(), Counter(), Counter(), Counter()
 
@@ -48,6 +50,8 @@ class Agg:
         self.oa[w["oa"]] += 1
         self.oa_year[w["year"]][w["oa"]] += 1
         self.types[w["type"]] += 1
+        self.types_year[w["year"]][w["type"]] += 1
+        self.doi_year[w["year"]] += w["doi"]
         for t in w["topics"]:
             self.topics[t] += 1
         for f in {(t[1], t[2]) for t in w["topics"]}:
@@ -65,6 +69,7 @@ class Agg:
             self.countries[cc] += 1
         if any(cc != "FR" for cc in ccs):
             self.intl += 1
+            self.intl_year[w["year"]] += 1
 
     def export(self):
         return {
@@ -73,6 +78,9 @@ class Agg:
             "oa": dict(self.oa),
             "oa_year": {str(y): dict(c) for y, c in sorted(self.oa_year.items())},
             "types": dict(self.types.most_common()),
+            "types_year": {str(y): dict(c) for y, c in sorted(self.types_year.items())},
+            "doi_year": {str(y): n for y, n in sorted(self.doi_year.items())},
+            "intl_year": {str(y): n for y, n in sorted(self.intl_year.items())},
             "countries": self.countries.most_common(TOP["countries"]),
             "partners": [[*k, n] for k, n in self.partners.most_common(TOP["partners"])],
             "topics": [[*k, n] for k, n in self.topics.most_common(TOP["topics"])],
@@ -189,6 +197,7 @@ def main():
         "meta": {
             "snapshot": os.path.basename(os.path.normpath(args.snapshot_dir)),
             "generated": dt.date.today().isoformat(),
+            "snapshot_date": (manifest.get("finished_at") or "")[:10] or dt.date.today().isoformat(),
             "institutions_fetched_at": inst.get("fetched_at", ""),
             "works_announced": manifest.get("meta_count_at_start"),
             "works_read": len(seen),
@@ -207,7 +216,7 @@ def main():
         f.write(template.replace("__DATA__", payload))
 
     print(f"\nWorks uniques lus : {len(seen)} (lignes : {n_lines})")
-    print(f"UCA (tous corpus) : {aggs['all']['UCA'].n} publications depuis {MIN_YEAR}")
+    print(f"UniCA (tous corpus) : {aggs['all']['UCA'].n} publications depuis {MIN_YEAR}")
     print(f"Sans labo identifié : {aggs['all']['NOLAB'].n}")
     print(f"Page générée : {os.path.join(args.out, 'index.html')}")
 
