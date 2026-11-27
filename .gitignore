@@ -1,0 +1,8 @@
+# On ne versionne que le tableau de bord (jamais les snapshots, ni extract_raw.py qui contient la clé API)
+*
+!.gitignore
+!build_dashboard.py
+!template.html
+!dashboard_app.py
+!docs/
+!docs/**

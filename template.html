@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Publications UCA — Tableau de bord OpenAlex</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1b2a3a;--mute:#6b7a8c;--line:#e3e8ee;--a:#0b6e8a;--a2:#e8f3f6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:linear-gradient(120deg,#0a3d5c,#0b6e8a);color:#fff;padding:22px 28px 56px}
+header h1{margin:0;font-size:22px;font-weight:650}
+header p{margin:4px 0 0;opacity:.8;font-size:13px}
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:16px}
+select{font:inherit;padding:8px 12px;border-radius:8px;border:0;min-width:300px;max-width:100%}
+.seg{display:inline-flex;background:rgba(255,255,255,.15);border-radius:8px;padding:3px}
+.seg button{border:0;background:none;color:#fff;font:inherit;font-size:13px;padding:5px 12px;border-radius:6px;cursor:pointer}
+.seg button.on{background:#fff;color:#0a3d5c;font-weight:600}
+main{max-width:1180px;margin:-36px auto 40px;padding:0 20px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.card{background:var(--card);border-radius:12px;padding:16px 18px;box-shadow:0 1px 3px rgba(20,40,60,.08)}
+.kpi b{display:block;font-size:28px;line-height:1.2;color:var(--a)}
+.kpi span{color:var(--mute);font-size:13px}
+nav{display:flex;gap:4px;margin:22px 0 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+nav button{border:0;background:none;font:inherit;padding:9px 16px;cursor:pointer;color:var(--mute);border-bottom:3px solid transparent}
+nav button.on{color:var(--a);border-color:var(--a);font-weight:600}
+.tab{display:none}.tab.on{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}
+.card h3{margin:0 0 2px;font-size:15px}
+.card .sub{color:var(--mute);font-size:12.5px;margin:0 0 10px}
+.ch{position:relative;height:290px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--line)}
+th{color:var(--mute);font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr.cl{cursor:pointer}tbody tr.cl:hover{background:var(--a2)}
+.note{font-size:12.5px;color:var(--mute);background:var(--a2);border-radius:8px;padding:10px 14px;margin-top:14px}
+#nmat{min-width:0;padding:4px 8px;border:1px solid var(--line);font-size:13px}
+.mx{border-collapse:separate;border-spacing:2px;width:auto}
+.mx th{border:0;padding:0;font-weight:500;color:var(--ink);cursor:pointer;white-space:nowrap;font-size:11.5px}
+.mx th:hover{color:#d9700f}
+.mx th.vh{height:150px;vertical-align:bottom;text-align:left}
+.mx th.vh div{writing-mode:vertical-rl;transform:rotate(180deg);padding:2px 0}
+.mx th.rh{text-align:right;padding-right:8px;position:sticky;left:0;background:#fff}
+.mx th.sel{color:#d9700f;font-weight:700}
+.mx td{width:30px;min-width:30px;height:28px;text-align:center;border:0;border-radius:4px;padding:0;font-size:11px;font-variant-numeric:tabular-nums;background:#f3f5f8}
+.mx td.d{background:repeating-linear-gradient(45deg,#e3e8ee,#e3e8ee 3px,#f3f5f8 3px,#f3f5f8 6px)}
+.mx td.hl{outline:2px solid #f28c28;outline-offset:-2px}
+footer{text-align:center;color:var(--mute);font-size:12px;padding:0 20px 30px}
+svg text{font-size:10px;fill:#33475b}
+.empty{color:var(--mute);padding:30px;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>Publications de l'Université Côte d'Azur</h1>
+  <p id="meta"></p>
+  <div class="bar">
+    <select id="ent" aria-label="Unité"></select>
+    <div class="seg" id="corpus">
+      <button data-c="all" class="on">Tous corpus</button>
+      <button data-c="core">Principal</button>
+      <button data-c="xpac">XPAC</button>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="kpis" id="kpis"></div>
+  <nav id="tabs">
+    <button data-t="vue" class="on">Vue d'ensemble</button>
+    <button data-t="oa">Open access</button>
+    <button data-t="collab">Collaborations</button>
+    <button data-t="them">Thématiques</button>
+    <button data-t="odd">ODD</button>
+    <button data-t="unites">Toutes les unités</button>
+  </nav>
+
+  <section class="tab on" id="t-vue"><div class="grid">
+    <div class="card"><h3>Publications par année</h3><p class="sub" id="yrnote"></p><div class="ch"><canvas id="c-years"></canvas></div></div>
+    <div class="card"><h3>Types de documents</h3><p class="sub">Typologie OpenAlex</p><div class="ch"><canvas id="c-types"></canvas></div></div>
+  </div></section>
+
+  <section class="tab" id="t-oa"><div class="grid">
+    <div class="card"><h3>Répartition par statut</h3><p class="sub">Toutes années confondues</p><div class="ch"><canvas id="c-oa"></canvas></div></div>
+    <div class="card" style="grid-column:1/-1"><h3>Évolution annuelle</h3><p class="sub">Part de chaque statut (%)</p><div class="ch" style="height:380px"><canvas id="c-oay"></canvas></div></div>
+  </div></section>
+
+  <section class="tab" id="t-collab">
+    <div class="grid">
+      <div class="card"><h3>Pays partenaires</h3><p class="sub" id="fr-note"></p><div class="ch"><canvas id="c-cty"></canvas></div></div>
+      <div class="card"><h3>Institutions partenaires</h3><p class="sub">Hors UCA et hors tutelles de l'unité</p><div style="max-height:600px;overflow:auto"><table id="tb-partners"></table></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h3 id="ego-t">Collaborations entre unités</h3><p class="sub">Nombre de publications cosignées avec chaque unité UCA (hors relation parent/enfant).</p>
+      <div class="ch" id="ego-box"><canvas id="c-ego"></canvas></div><p class="sub" id="ego-empty" style="display:none"></p></div>
+    <div class="card" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><div><h3>Matrice des collaborations</h3>
+      <p class="sub">Chaque case = nombre de publications cosignées par deux unités ; plus la case est foncée, plus la collaboration est forte. Cliquer sur un nom pour ouvrir la fiche.</p></div>
+      <label class="sub">Unités affichées <select id="nmat"><option>20</option><option selected>30</option><option>50</option></select></label></div>
+      <div style="overflow:auto" id="net"></div></div>
+  </section>
+
+  <section class="tab" id="t-them"><div class="grid">
+    <div class="card"><h3>Domaines</h3><p class="sub">Topics attribués automatiquement par OpenAlex (jusqu'à 3 par publication)</p><div class="ch"><canvas id="c-dom"></canvas></div></div>
+    <div class="card"><h3>Disciplines (fields)</h3><p class="sub">Nombre de publications</p><div class="ch"><canvas id="c-fld"></canvas></div></div>
+    <div class="card" style="grid-column:1/-1"><h3>Principaux sujets (topics)</h3><div style="max-height:360px;overflow:auto"><table id="tb-topics"></table></div></div>
+  </div></section>
+
+  <section class="tab" id="t-odd"><div class="card"><h3>Objectifs de développement durable</h3>
+    <p class="sub">Classification automatique d'OpenAlex : un work peut relever de plusieurs ODD.</p>
+    <div class="ch" style="height:480px"><canvas id="c-sdg"></canvas></div></div></section>
+
+  <section class="tab" id="t-unites"><div class="card"><h3>Comparatif des unités</h3>
+    <p class="sub">Cliquer sur une ligne pour ouvrir la fiche. Comptage entier : les totaux ne s'additionnent pas.</p>
+    <div style="overflow:auto"><table id="tb-units"></table></div></div></section>
+
+  <div class="note">Lecture : les chiffres reflètent ce qu'OpenAlex sait rattacher aujourd'hui à l'UCA et à ses unités
+  (comptage entier, depuis <span id="miny"></span>). Les thématiques et ODD sont attribués automatiquement et sont indicatifs.
+  Aucun indicateur de citation n'est présenté (DORA, CoARA).</div>
+</main>
+<footer id="foot"></footer>
+
+<script>
+const D=__DATA__;
+const $=s=>document.querySelector(s);
+const fmt=n=>(n||0).toLocaleString('fr-FR');
+const pct=(a,b)=>b?(100*a/b).toFixed(1).replace('.',',')+' %':'–';
+let rn;try{rn=new Intl.DisplayNames(['fr'],{type:'region'})}catch(e){}
+const cname=c=>{try{return rn.of(c)}catch(e){return c}};
+const flag=c=>c&&c.length==2?String.fromCodePoint(...[...c.toUpperCase()].map(x=>127397+x.charCodeAt())):'';
+const OAC={diamond:'#38b6e0',gold:'#f2b705',green:'#2e9e5b',hybrid:'#f28c28',bronze:'#b5651d',closed:'#a7b1bd',unknown:'#d5dbe1'};
+const OAL={diamond:'Diamant',gold:'Or',green:'Vert',hybrid:'Hybride',bronze:'Bronze',closed:'Fermé',unknown:'Inconnu'};
+const OAO=['diamond','gold','green','hybrid','bronze','closed','unknown'];
+const SDGC=['#e5243b','#dda63a','#4c9f38','#c5192d','#ff3a21','#26bde2','#fcc30b','#a21942','#fd6925','#dd1367','#fd9d24','#bf8b2e','#3f7e44','#0a97d9','#56c02b','#00689d','#19486a'];
+const PAL=['#0b6e8a','#f28c28','#2e9e5b','#8e5ea2','#d64550','#3b8ea5','#c9a227','#6b7a8c'];
+const st={ent:'UCA',c:'all',nmat:30,sort:{k:'n',d:-1}};
+const empty={n:0,doi:0,intl:0,years:{},oa:{},oa_year:{},types:{},countries:[],partners:[],topics:[],fields:[],domains:{},sdg:[]};
+const uname={UCA:'Université Côte d\'Azur (ensemble)',NOLAB:'Sans laboratoire identifié'};
+D.units.forEach(u=>uname[u.id]=u.name+(u.acro?' ('+u.acro+')':''));
+const cur=()=>D.data[st.c][st.ent]||empty;
+const charts={};
+function mk(id,cfg){if(charts[id])charts[id].destroy();
+  cfg.options=Object.assign({responsive:true,maintainAspectRatio:false},cfg.options||{});
+  charts[id]=new Chart($('#'+id),cfg)}
+const ax={grid:{color:'#eef1f5'},border:{display:false}};
+const noleg={plugins:{legend:{display:false}}};
+const yax={grid:{display:false},ticks:{autoSkip:false}};
+const dark=c=>{const n=parseInt(c.slice(1),16);return .299*(n>>16)+.587*(n>>8&255)+.114*(n&255)>150};
+const f1=v=>v.toFixed(1).replace('.',',');
+const pctLabels={id:'pctLabels',afterDatasetsDraw(ch,_a,o){
+  const ctx=ch.ctx;ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+  if(o.kind=='donut'){const ds=ch.data.datasets[0],t=ds.data.reduce((a,b)=>a+b,0);ctx.font='600 11px system-ui';
+    ch.getDatasetMeta(0).data.forEach((arc,i)=>{const p=100*ds.data[i]/t;if(p<5)return;const c=arc.getCenterPoint();
+      ctx.fillStyle=dark(ds.backgroundColor[i])?'#1b2a3a':'#fff';ctx.fillText(f1(p)+' %',c.x,c.y)})}
+  else{ctx.font='600 10px system-ui';
+    ch.data.datasets.forEach((ds,i)=>{const m=ch.getDatasetMeta(i);if(m.hidden)return;
+      m.data.forEach((el,j)=>{const v=ds.data[j];if(v>=7&&el.width>=26&&Math.abs(el.base-el.y)>=14){
+        ctx.fillStyle=dark(ds.backgroundColor)?'#1b2a3a':'#fff';ctx.fillText(Math.round(v)+' %',el.x,(el.y+el.base)/2)}})})}
+  ctx.restore()}};
+const legPct=ch=>{const g=Chart.overrides.doughnut.plugins.legend.labels.generateLabels(ch),ds=ch.data.datasets[0],t=ds.data.reduce((a,b)=>a+b,0);
+  g.forEach((l,i)=>l.text+=' — '+f1(100*ds.data[i]/t)+' %');return g};
+
+function init(){
+  $('#meta').textContent=`Snapshot ${D.meta.snapshot} · ${fmt(D.meta.works_read)} works lus · généré le ${D.meta.generated}`;
+  $('#miny').textContent=D.meta.min_year;
+  $('#foot').textContent='Données : OpenAlex. Page générée par build_dashboard.py — DIBSO, Université Côte d\'Azur.';
+  const sel=$('#ent');
+  const us=[...D.units].filter(u=>D.data.all[u.id]).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  sel.innerHTML=`<option value="UCA">${uname.UCA}</option><option value="NOLAB">${uname.NOLAB}</option>`+
+    us.map(u=>`<option value="${u.id}">${uname[u.id]}</option>`).join('');
+  sel.onchange=()=>{st.ent=sel.value;render()};
+  document.querySelectorAll('#corpus button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#corpus button').forEach(x=>x.classList.toggle('on',x==b));st.c=b.dataset.c;render()});
+  document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x==b));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.id=='t-'+b.dataset.t))});
+  render();
+}
+function pick(id){st.ent=id;$('#ent').value=id;render();window.scrollTo({top:0,behavior:'smooth'})}
+
+function render(){
+  const d=cur(),ys=Object.keys(d.years).map(Number);
+  const nOA=(d.n)-(d.oa.closed||0)-(d.oa.unknown||0);
+  $('#kpis').innerHTML=[
+    [fmt(d.n),'publications'],[pct(nOA,d.n),'en accès ouvert'],
+    [pct(d.oa.diamond||0,d.n),'diamant'],[pct(d.intl,d.n),'avec partenaire étranger'],
+    [pct(d.doi,d.n),'avec DOI']].map(k=>`<div class="card kpi"><b>${k[0]}</b><span>${k[1]}</span></div>`).join('');
+  if(!d.n){return}
+  const y0=Math.min(...ys),y1=Math.max(...ys),Y=[];for(let y=y0;y<=y1;y++)Y.push(y);
+  const yr=new Date().getFullYear();
+  $('#yrnote').textContent=y1>=yr?`${yr} : année en cours, données partielles`:'';
+  mk('c-years',{type:'bar',data:{labels:Y,datasets:[{data:Y.map(y=>d.years[y]||0),
+    backgroundColor:Y.map(y=>y>=yr?'#9fcfdb':'#0b6e8a'),borderRadius:3}]},
+    options:{...noleg,scales:{x:ax,y:ax}}});
+  const ty=Object.entries(d.types).slice(0,8);
+  mk('c-types',{type:'bar',data:{labels:ty.map(t=>t[0]),datasets:[{data:ty.map(t=>t[1]),backgroundColor:'#3b8ea5',borderRadius:3}]},
+    options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}});
+  const oas=OAO.filter(k=>d.oa[k]);
+  mk('c-oa',{type:'doughnut',data:{labels:oas.map(k=>OAL[k]),datasets:[{data:oas.map(k=>d.oa[k]),backgroundColor:oas.map(k=>OAC[k]),borderWidth:2}]},
+    options:{cutout:'52%',plugins:{legend:{position:'right',labels:{generateLabels:legPct}},pctLabels:{kind:'donut'}}},plugins:[pctLabels]});
+  mk('c-oay',{type:'bar',data:{labels:Y,datasets:oas.map(k=>({label:OAL[k],backgroundColor:OAC[k],
+    data:Y.map(y=>{const o=d.oa_year[y]||{},t=Object.values(o).reduce((a,b)=>a+b,0);return t?+(100*(o[k]||0)/t).toFixed(1):0})}))},
+    options:{scales:{x:{...ax,stacked:true},y:{...ax,stacked:true,max:100,ticks:{callback:v=>v+' %'}}},plugins:{legend:{position:'bottom',labels:{boxWidth:10}},pctLabels:{kind:'bar'}}},plugins:[pctLabels]});
+  const fr=(d.countries.find(c=>c[0]=='FR')||[0,0])[1];
+  $('#fr-note').textContent=`Publications avec ≥1 partenaire en France (hors tutelles) : ${fmt(fr)}. Hors France ci-dessous.`;
+  const cs=d.countries.filter(c=>c[0]!='FR').slice(0,20),hh=Math.max(200,cs.length*27+40);
+  $('#c-cty').parentElement.style.height=hh+'px';$('#tb-partners').parentElement.style.maxHeight=hh+'px';
+  mk('c-cty',{type:'bar',data:{labels:cs.map(c=>flag(c[0])+' '+cname(c[0])),datasets:[{data:cs.map(c=>c[1]),backgroundColor:'#0b6e8a',borderRadius:3}]},
+    options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}});
+  $('#tb-partners').innerHTML='<thead><tr><th>Institution</th><th>Pays</th><th class="n">Pub.</th></tr></thead><tbody>'+
+    d.partners.map(p=>`<tr><td>${p[0]}</td><td>${flag(p[1])} ${p[1]}</td><td class="n">${fmt(p[3])}</td></tr>`).join('')+'</tbody>';
+  network();
+  const dm=Object.entries(d.domains);
+  mk('c-dom',{type:'doughnut',data:{labels:dm.map(x=>x[0]),datasets:[{data:dm.map(x=>x[1]),backgroundColor:PAL,borderWidth:2}]},
+    options:{cutout:'52%',plugins:{legend:{position:'right',labels:{generateLabels:legPct}},pctLabels:{kind:'donut'}}},plugins:[pctLabels]});
+  const fl=d.fields.slice(0,10);
+  mk('c-fld',{type:'bar',data:{labels:fl.map(f=>f[0]),datasets:[{data:fl.map(f=>f[2]),backgroundColor:'#2e9e5b',borderRadius:3}]},
+    options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}});
+  $('#tb-topics').innerHTML='<thead><tr><th>Sujet</th><th>Discipline</th><th>Domaine</th><th class="n">Pub.</th></tr></thead><tbody>'+
+    d.topics.map(t=>`<tr><td>${t[0]}</td><td>${t[1]}</td><td>${t[2]}</td><td class="n">${fmt(t[3])}</td></tr>`).join('')+'</tbody>';
+  const sg=d.sdg;
+  mk('c-sdg',{type:'bar',data:{labels:sg.map(s=>s[0]+'. '+s[1]),datasets:[{data:sg.map(s=>s[2]),backgroundColor:sg.map(s=>SDGC[s[0]-1]),borderRadius:3}]},
+    options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}});
+  units();
+}
+
+function network(){
+  const E=D.edges[st.c],sel=st.ent,isSel=sel!='UCA'&&sel!='NOLAB',nm={};
+  D.units.forEach(u=>nm[u.id]=u);
+  const lab=(id,n)=>{const u=nm[id],s=u.acro||u.name;return s.length>n?s.slice(0,n-1)+'…':s};
+  const full=id=>nm[id].name+(nm[id].acro?' ('+nm[id].acro+')':'');
+  // --- classement : partenaires de l'unité, ou paires les plus fortes
+  let it;
+  if(isSel){it=E.filter(e=>e[0]==sel||e[1]==sel).map(e=>[full(e[0]==sel?e[1]:e[0]),e[2]]);
+    $('#ego-t').textContent='Unités partenaires de '+(nm[sel]?nm[sel].acro||nm[sel].name:'')}
+  else{it=E.map(e=>[lab(e[0],22)+' × '+lab(e[1],22),e[2]]);$('#ego-t').textContent='Paires d\'unités qui collaborent le plus'}
+  it=it.slice(0,15);
+  const box=$('#ego-box'),em=$('#ego-empty');
+  if(!it.length){if(charts['c-ego']){charts['c-ego'].destroy();delete charts['c-ego']}
+    box.style.display='none';em.style.display='block';em.textContent='Aucune cosignature avec une autre unité UCA.'}
+  else{box.style.display='block';em.style.display='none';box.style.height=Math.max(160,it.length*27+40)+'px';
+    mk('c-ego',{type:'bar',data:{labels:it.map(x=>x[0]),datasets:[{data:it.map(x=>x[1]),backgroundColor:'#0b6e8a',borderRadius:3}]},
+      options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}})}
+  // --- matrice
+  const el=$('#net'),tot={};
+  E.forEach(e=>{tot[e[0]]=(tot[e[0]]||0)+e[2];tot[e[1]]=(tot[e[1]]||0)+e[2]});
+  let ids=Object.keys(tot).sort((a,b)=>tot[b]-tot[a]).slice(0,st.nmat);
+  if(isSel&&tot[sel]&&!ids.includes(sel))ids.push(sel);
+  if(!ids.length){el.innerHTML='<div class="empty">Aucune collaboration entre unités.</div>';return}
+  const M={};E.forEach(e=>{M[e[0]+'|'+e[1]]=e[2];M[e[1]+'|'+e[0]]=e[2]});
+  const mx=Math.max(1,...E.filter(e=>ids.includes(e[0])&&ids.includes(e[1])).map(e=>e[2]));
+  let s='<table class="mx"><thead><tr><th></th>'+ids.map(i=>`<th class="vh ${i==sel?'sel':''}" title="${full(i)}" onclick="pick('${i}')"><div>${lab(i,26)}</div></th>`).join('')+'</tr></thead><tbody>';
+  ids.forEach(r=>{s+=`<tr><th class="rh ${r==sel?'sel':''}" title="${full(r)}" onclick="pick('${r}')">${lab(r,34)}</th>`;
+    ids.forEach(c=>{if(r==c){s+='<td class="d"></td>';return}
+      const n=M[r+'|'+c]||0,hl=(r==sel||c==sel)?' hl':'';
+      if(!n){s+=`<td class="${hl}"></td>`;return}
+      const a=.12+.88*Math.sqrt(n/mx);
+      s+=`<td class="${hl.trim()}" style="background:rgba(11,110,138,${a.toFixed(2)});color:${a>.5?'#fff':'#0a3d5c'}" title="${full(r)} × ${full(c)} : ${n} publication(s)">${n}</td>`});
+    s+='</tr>'});
+  el.innerHTML=s+'</tbody></table>';
+}
+$('#nmat').onchange=e=>{st.nmat=+e.target.value;network()};
+
+function units(){
+  const rows=D.units.filter(u=>D.data[st.c][u.id]).map(u=>{const d=D.data[st.c][u.id];
+    const oa=d.n-(d.oa.closed||0)-(d.oa.unknown||0);
+    return{id:u.id,name:u.name,acro:u.acro,n:d.n,oa:d.n?oa/d.n:0,dia:d.n?(d.oa.diamond||0)/d.n:0,intl:d.n?d.intl/d.n:0,doi:d.n?d.doi/d.n:0}});
+  const {k,d}=st.sort;rows.sort((a,b)=>k=='name'?d*-1*a.name.localeCompare(b.name,'fr'):d*(a[k]-b[k]));
+  const p=x=>(100*x).toFixed(1).replace('.',',')+' %';
+  const th=(key,l,n)=>`<th class="${n?'n':''}" onclick="st.sort={k:'${key}',d:st.sort.k=='${key}'?-st.sort.d:-1};units()">${l}${k==key?(d<0?' ↓':' ↑'):''}</th>`;
+  $('#tb-units').innerHTML='<thead><tr>'+th('name','Unité')+th('n','Publications',1)+th('oa','% OA',1)+th('dia','% diamant',1)+th('intl','% international',1)+th('doi','% DOI',1)+'</tr></thead><tbody>'+
+    rows.map(r=>`<tr class="cl" onclick="pick('${r.id}')"><td>${r.name}${r.acro?' <span style="color:var(--mute)">('+r.acro+')</span>':''}</td><td class="n">${fmt(r.n)}</td><td class="n">${p(r.oa)}</td><td class="n">${p(r.dia)}</td><td class="n">${p(r.intl)}</td><td class="n">${p(r.doi)}</td></tr>`).join('')+'</tbody>';
+}
+init();
+</script>
+</body>
+</html>
