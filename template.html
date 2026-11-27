@@ -47,6 +47,7 @@ tbody tr.cl{cursor:pointer}tbody tr.cl:hover{background:var(--a2)}
 .mx td{width:30px;min-width:30px;height:28px;text-align:center;border:0;border-radius:4px;padding:0;font-size:11px;font-variant-numeric:tabular-nums;background:#f3f5f8}
 .mx td.d{background:repeating-linear-gradient(45deg,#e3e8ee,#e3e8ee 3px,#f3f5f8 3px,#f3f5f8 6px)}
 .mx td.hl{outline:2px solid #f28c28;outline-offset:-2px}
+#ysel{min-width:0}
 .chip{border:0;background:#fff;color:#0a3d5c;font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;cursor:pointer}.chip[hidden]{display:none}
 footer{text-align:center;color:var(--mute);font-size:12px;padding:0 20px 30px}
 svg text{font-size:10px;fill:#33475b}
@@ -63,7 +64,7 @@ svg text{font-size:10px;fill:#33475b}
       <button data-c="core">Principal</button>
       <button data-c="xpac">XPAC</button>
     </div>
-    <button id="yf" class="chip" hidden title="Retirer le filtre"></button>
+    <select id="ysel" aria-label="Année"></select>
   </div>
 </header>
 <main>
@@ -136,6 +137,13 @@ const empty={n:0,doi:0,intl:0,years:{},oa:{},oa_year:{},types:{},countries:[],pa
 const uname={UCA:'Université Côte d\'Azur (ensemble)',NOLAB:'Sans laboratoire identifié'};
 D.units.forEach(u=>uname[u.id]=u.name+(u.acro?' ('+u.acro+')':''));
 const cur=()=>D.data[st.c][st.ent]||empty;
+const SDGN={};(D.data.all.UCA.sdg||[]).forEach(s=>SDGN[s[0]]=s[1]);
+function yview(d,S){
+  if(!S)return d;
+  const b=d.by_year&&d.by_year[S];if(!b)return empty;
+  const T=D.tables;
+  return {...b,partners:b.partners.map(x=>[...T.partners[x[0]],x[1]]),topics:b.topics.map(x=>[...T.topics[x[0]],x[1]]),
+    fields:b.fields.map(x=>[...T.fields[x[0]],x[1]]),sdg:b.sdg.map(x=>[x[0],SDGN[x[0]]||'',x[1]])}}
 const charts={};
 function mk(id,cfg){if(charts[id])charts[id].destroy();
   cfg.options=Object.assign({responsive:true,maintainAspectRatio:false},cfg.options||{});
@@ -159,7 +167,11 @@ const legPct=ch=>{const g=Chart.overrides.doughnut.plugins.legend.labels.generat
   g.forEach((l,i)=>l.text+=' — '+f1(100*ds.data[i]/t)+' %');return g};
 
 function init(){
-  $('#yf').onclick=()=>{st.year=null;render()};
+  const UID=D.units.map(u=>u.id);
+  for(const c in D.edges_year)for(const y in D.edges_year[c])D.edges_year[c][y]=D.edges_year[c][y].map(e=>[UID[e[0]],UID[e[1]],e[2]]);
+  const ysel=$('#ysel');
+  ysel.innerHTML='<option value="">Toutes les années</option>'+Object.keys(D.data.all.UCA.years).sort().reverse().map(y=>`<option value="${y}">${y}</option>`).join('');
+  ysel.onchange=()=>{st.year=ysel.value?+ysel.value:null;render()};
   $('#foot').textContent='Données : OpenAlex · snapshot du '+new Date(D.meta.snapshot_date).toLocaleDateString('fr-FR');
   const sel=$('#ent');
   const us=[...D.units].filter(u=>D.data.all[u.id]).sort((a,b)=>a.name.localeCompare(b.name,'fr'));
@@ -178,10 +190,9 @@ function pick(id){st.ent=id;$('#ent').value=id;render();window.scrollTo({top:0,b
 function render(){
   const d=cur(),ys=Object.keys(d.years).map(Number);
   if(st.year&&!d.years[st.year])st.year=null;
-  const S=st.year,oaC=S?(d.oa_year[S]||{}):d.oa,N=S?d.years[S]:d.n,
-    DOI=S?(d.doi_year[S]||0):d.doi,INTL=S?(d.intl_year[S]||0):d.intl,TY=S?(d.types_year[S]||{}):d.types;
+  const S=st.year,v=yview(d,S),oaC=v.oa,N=v.n,DOI=v.doi,INTL=v.intl,TY=v.types;
   const nOA=N-(oaC.closed||0)-(oaC.unknown||0);
-  const yf=$('#yf');yf.hidden=!S;yf.textContent='Année '+S+' ✕';
+  $('#ysel').value=S||'';
   $('#kpis').innerHTML=[
     [fmt(N),'publications'+(S?' en '+S:'')],[pct(nOA,N),'en accès ouvert ('+fmt(nOA)+')'],
     [pct(oaC.diamond||0,N),'diamant'],[pct(INTL,N),'avec partenaire étranger'],
@@ -208,34 +219,34 @@ function render(){
   const oaN=y=>Object.entries(d.oa_year[y]||{}).filter(([k])=>k!='closed'&&k!='unknown').reduce((a,[,v])=>a+v,0);
   const oaT=y=>Object.values(d.oa_year[y]||{}).reduce((a,b)=>a+b,0);
   mk('c-oatot',{type:'bar',data:{labels:Y,datasets:[
-    {type:'bar',label:'Publications en accès ouvert',data:Y.map(oaN),backgroundColor:'#2e9e5b',borderRadius:3,yAxisID:'y'},
-    {type:'line',label:'Part en accès ouvert',data:Y.map(y=>oaT(y)?+(100*oaN(y)/oaT(y)).toFixed(1):0),borderColor:'#0a3d5c',backgroundColor:'#0a3d5c',tension:.25,pointRadius:3,yAxisID:'y1'}]},
+    {type:'bar',label:'Publications en accès ouvert',order:1,data:Y.map(oaN),backgroundColor:'#2e9e5b',borderRadius:3,yAxisID:'y'},
+    {type:'line',order:0,label:'Part en accès ouvert',data:Y.map(y=>oaT(y)?+(100*oaN(y)/oaT(y)).toFixed(1):0),borderColor:'#0a3d5c',backgroundColor:'#0a3d5c',tension:.25,pointRadius:3,yAxisID:'y1'}]},
     options:{scales:{x:ax,y:ax,y1:{position:'right',min:0,max:100,grid:{display:false},border:{display:false},ticks:{callback:v=>v+' %'}}},plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}});
-  const fr=(d.countries.find(c=>c[0]=='FR')||[0,0])[1];
+  const fr=(v.countries.find(c=>c[0]=='FR')||[0,0])[1];
   $('#fr-note').textContent=`Publications avec ≥1 partenaire en France (hors tutelles) : ${fmt(fr)}. Hors France ci-dessous.`;
-  const cs=d.countries.filter(c=>c[0]!='FR').slice(0,20),hh=Math.max(200,cs.length*27+40);
+  const cs=v.countries.filter(c=>c[0]!='FR').slice(0,20),hh=Math.max(200,cs.length*27+40);
   $('#c-cty').parentElement.style.height=hh+'px';$('#tb-partners').parentElement.style.maxHeight=hh+'px';
   mk('c-cty',{type:'bar',data:{labels:cs.map(c=>flag(c[0])+' '+cname(c[0])),datasets:[{data:cs.map(c=>c[1]),backgroundColor:'#0b6e8a',borderRadius:3}]},
     options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}});
   $('#tb-partners').innerHTML='<thead><tr><th>Institution</th><th>Pays</th><th class="n">Pub.</th></tr></thead><tbody>'+
-    d.partners.map(p=>`<tr><td>${p[0]}</td><td>${flag(p[1])} ${p[1]}</td><td class="n">${fmt(p[3])}</td></tr>`).join('')+'</tbody>';
+    v.partners.map(p=>`<tr><td>${p[0]}</td><td>${flag(p[1])} ${p[1]}</td><td class="n">${fmt(p[3])}</td></tr>`).join('')+'</tbody>';
   network();
-  const dm=Object.entries(d.domains);
+  const dm=Object.entries(v.domains);
   mk('c-dom',{type:'doughnut',data:{labels:dm.map(x=>x[0]),datasets:[{data:dm.map(x=>x[1]),backgroundColor:PAL,borderWidth:2}]},
     options:{cutout:'52%',plugins:{legend:{position:'right',labels:{generateLabels:legPct}},pctLabels:{kind:'donut'}}},plugins:[pctLabels]});
-  const fl=d.fields.slice(0,10);
+  const fl=v.fields.slice(0,10);
   mk('c-fld',{type:'bar',data:{labels:fl.map(f=>f[0]),datasets:[{data:fl.map(f=>f[2]),backgroundColor:'#2e9e5b',borderRadius:3}]},
     options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}});
   $('#tb-topics').innerHTML='<thead><tr><th>Sujet</th><th>Discipline</th><th>Domaine</th><th class="n">Pub.</th></tr></thead><tbody>'+
-    d.topics.map(t=>`<tr><td>${t[0]}</td><td>${t[1]}</td><td>${t[2]}</td><td class="n">${fmt(t[3])}</td></tr>`).join('')+'</tbody>';
-  const sg=d.sdg;
+    v.topics.map(t=>`<tr><td>${t[0]}</td><td>${t[1]}</td><td>${t[2]}</td><td class="n">${fmt(t[3])}</td></tr>`).join('')+'</tbody>';
+  const sg=v.sdg;
   mk('c-sdg',{type:'bar',data:{labels:sg.map(s=>s[0]+'. '+s[1]),datasets:[{data:sg.map(s=>s[2]),backgroundColor:sg.map(s=>SDGC[s[0]-1]),borderRadius:3}]},
     options:{...noleg,indexAxis:'y',scales:{x:ax,y:yax}}});
   units();
 }
 
 function network(){
-  const E=D.edges[st.c],sel=st.ent,isSel=sel!='UCA'&&sel!='NOLAB',nm={};
+  const E=st.year?((D.edges_year[st.c]||{})[st.year]||[]):D.edges[st.c],sel=st.ent,isSel=sel!='UCA'&&sel!='NOLAB',nm={};
   D.units.forEach(u=>nm[u.id]=u);
   const lab=(id,n)=>{const u=nm[id],s=u.acro||u.name;return s.length>n?s.slice(0,n-1)+'…':s};
   const full=id=>nm[id].name+(nm[id].acro?' ('+nm[id].acro+')':'');
@@ -272,7 +283,7 @@ function network(){
 $('#nmat').onchange=e=>{st.nmat=+e.target.value;network()};
 
 function units(){
-  const rows=D.units.filter(u=>D.data[st.c][u.id]).map(u=>{const d=D.data[st.c][u.id];
+  const rows=D.units.filter(u=>D.data[st.c][u.id]&&yview(D.data[st.c][u.id],st.year).n).map(u=>{const d=yview(D.data[st.c][u.id],st.year);
     const oa=d.n-(d.oa.closed||0)-(d.oa.unknown||0);
     return{id:u.id,name:u.name,acro:u.acro,n:d.n,oa:d.n?oa/d.n:0,dia:d.n?(d.oa.diamond||0)/d.n:0,intl:d.n?d.intl/d.n:0,doi:d.n?d.doi/d.n:0}});
   const {k,d}=st.sort;rows.sort((a,b)=>k=='name'?d*-1*a.name.localeCompare(b.name,'fr'):d*(a[k]-b[k]));

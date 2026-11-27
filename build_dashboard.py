@@ -31,17 +31,36 @@ def short(i):
     return i.rsplit("/", 1)[-1] if i else ""
 
 
-class Agg:
-    """Agrégats d'une entité (UCA, un labo, ou 'sans labo') pour un corpus."""
+TOP_Y = {"countries": 21, "partners": 15, "topics": 12, "fields": 10}
+
+
+class Interner:
+    """Table de chaînes partagée : évite de répéter les noms dans chaque année/unité."""
 
     def __init__(self):
+        self.idx, self.items = {}, []
+
+    def __call__(self, k):
+        if k not in self.idx:
+            self.idx[k] = len(self.items)
+            self.items.append(list(k))
+        return self.idx[k]
+
+
+PT, TT, FT = Interner(), Interner(), Interner()
+
+
+class Agg:
+    """Agrégats d'une entité (UniCA, un labo, ou 'sans labo') pour un corpus.
+    Avec by_year=True, conserve aussi les mêmes agrégats année par année."""
+
+    def __init__(self, by_year=False):
         self.n = self.doi = self.intl = 0
         self.years, self.oa, self.types = Counter(), Counter(), Counter()
         self.oa_year = defaultdict(Counter)
-        self.types_year = defaultdict(Counter)
-        self.doi_year, self.intl_year = Counter(), Counter()
         self.countries, self.partners = Counter(), Counter()
         self.topics, self.fields, self.domains, self.sdg = Counter(), Counter(), Counter(), Counter()
+        self.sub = defaultdict(Agg) if by_year else None
 
     def add(self, w, partners):
         self.n += 1
@@ -50,8 +69,6 @@ class Agg:
         self.oa[w["oa"]] += 1
         self.oa_year[w["year"]][w["oa"]] += 1
         self.types[w["type"]] += 1
-        self.types_year[w["year"]][w["type"]] += 1
-        self.doi_year[w["year"]] += w["doi"]
         for t in w["topics"]:
             self.topics[t] += 1
         for f in {(t[1], t[2]) for t in w["topics"]}:
@@ -69,18 +86,28 @@ class Agg:
             self.countries[cc] += 1
         if any(cc != "FR" for cc in ccs):
             self.intl += 1
-            self.intl_year[w["year"]] += 1
+        if self.sub is not None:
+            self.sub[w["year"]].add(w, partners)
+
+    def export_year(self):
+        return {
+            "n": self.n, "doi": self.doi, "intl": self.intl,
+            "oa": dict(self.oa), "types": dict(self.types.most_common(10)),
+            "countries": self.countries.most_common(TOP_Y["countries"]),
+            "partners": [[PT(k), n] for k, n in self.partners.most_common(TOP_Y["partners"])],
+            "topics": [[TT(k), n] for k, n in self.topics.most_common(TOP_Y["topics"])],
+            "fields": [[FT(k), n] for k, n in self.fields.most_common(TOP_Y["fields"])],
+            "domains": dict(self.domains),
+            "sdg": [[k[0], n] for k, n in sorted(self.sdg.items())],
+        }
 
     def export(self):
-        return {
+        out = {
             "n": self.n, "doi": self.doi, "intl": self.intl,
             "years": {str(y): n for y, n in sorted(self.years.items())},
             "oa": dict(self.oa),
             "oa_year": {str(y): dict(c) for y, c in sorted(self.oa_year.items())},
             "types": dict(self.types.most_common()),
-            "types_year": {str(y): dict(c) for y, c in sorted(self.types_year.items())},
-            "doi_year": {str(y): n for y, n in sorted(self.doi_year.items())},
-            "intl_year": {str(y): n for y, n in sorted(self.intl_year.items())},
             "countries": self.countries.most_common(TOP["countries"]),
             "partners": [[*k, n] for k, n in self.partners.most_common(TOP["partners"])],
             "topics": [[*k, n] for k, n in self.topics.most_common(TOP["topics"])],
@@ -88,6 +115,9 @@ class Agg:
             "domains": dict(self.domains.most_common()),
             "sdg": [[k[0], k[1], n] for k, n in sorted(self.sdg.items())],
         }
+        if self.sub is not None:
+            out["by_year"] = {str(y): a.export_year() for y, a in sorted(self.sub.items())}
+        return out
 
 
 def parse_work(w):
@@ -148,8 +178,9 @@ def main():
     excl["UCA"] = all_excl
     excl["NOLAB"] = all_excl
 
-    aggs = {c: defaultdict(Agg) for c in ("all", "core", "xpac")}
+    aggs = {c: defaultdict(lambda: Agg(by_year=True)) for c in ("all", "core", "xpac")}
     edges = {c: Counter() for c in aggs}
+    edges_y = {c: defaultdict(Counter) for c in aggs}
     seen, n_lines = set(), 0
 
     raw = os.path.join(args.snapshot_dir, "raw_works.jsonl.gz")
@@ -192,7 +223,10 @@ def main():
                     if a in lineage[b] or b in lineage[a]:
                         continue  # parent/enfant : pas une vraie collaboration
                     edges[c][(a, b)] += 1
+                    edges_y[c][info["year"]][(a, b)] += 1
 
+    data = {c: {e: a.export() for e, a in d.items()} for c, d in aggs.items()}
+    uidx = {u["id"]: i for i, u in enumerate(units)}
     out = {
         "meta": {
             "snapshot": os.path.basename(os.path.normpath(args.snapshot_dir)),
@@ -204,8 +238,11 @@ def main():
             "min_year": MIN_YEAR,
         },
         "units": units,
-        "data": {c: {e: a.export() for e, a in d.items()} for c, d in aggs.items()},
+        "data": data,
+        "tables": {"partners": PT.items, "topics": TT.items, "fields": FT.items},
         "edges": {c: [[a, b, n] for (a, b), n in e.most_common()] for c, e in edges.items()},
+        "edges_year": {c: {str(y): [[uidx[a], uidx[b], n] for (a, b), n in e.most_common()]
+                           for y, e in sorted(ey.items())} for c, ey in edges_y.items()},
     }
 
     os.makedirs(args.out, exist_ok=True)
